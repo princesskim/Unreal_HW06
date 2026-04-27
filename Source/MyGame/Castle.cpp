@@ -7,6 +7,8 @@
 #include "Swan.h"
 #include "SwanPath.h"
 #include "Engine/World.h"
+#include "ClockworkControlled.h"			// 인터페이스 헤더
+#include "Kismet/GameplayStatics.h"
 
 ACastle::ACastle()
 {
@@ -56,9 +58,9 @@ ACastle::ACastle()
 	MoonColor = FLinearColor(0.4f, 0.5f, 0.9f);			// 푸른 톤 새벽 감성
 	SwanCount = 20;
 	SwanSpeed = 150.f;
-	SwanActiveStartHour = 6;
-	SwanActiveEndHour = 22;
-	bWereSwansActive = true;
+	ClockworkActiveStartHour = 6;
+	ClockworkActiveEndHour = 22;
+	bWereClockworkActorsActive = true;
 }
 
 void ACastle::BeginPlay()
@@ -68,12 +70,14 @@ void ACastle::BeginPlay()
 	CurrentGameSeconds = static_cast<float>(StartHour * 3600 + StartMinute * 60);
 	
 	SpawnSwans();
+	RegisterClockworkActors();
+	
 	UpdateClockHands();
 	UpdateSunAndMoon();
 	
-	bWereSwansActive = !IsSwanActiveTime();								// 첫 호출 시 무조건 변화 감지되도록 강제
-																		// ← 일부러 반대값
-	UpdateSwansActiveState();											// 무조건 변화 감지함!
+	const bool bInitialActive = IsClockworkActiveTime();
+	NotifyClockworkActors(bInitialActive);
+	bWereClockworkActorsActive = bInitialActive;
 }
 
 void ACastle::Tick(float DeltaTime)
@@ -90,7 +94,7 @@ void ACastle::Tick(float DeltaTime)
 	}
 	UpdateClockHands();
 	UpdateSunAndMoon();
-	UpdateSwansActiveState();
+	UpdateClockworkActorsActiveState();
 }
 
 void ACastle::GetCurrentGameTime(int32& OutHour, int32& OutMinute) const
@@ -208,30 +212,64 @@ void ACastle::UpdateSunAndMoon()
 	
 }
 
-bool ACastle::IsSwanActiveTime() const
+bool ACastle::IsClockworkActiveTime() const
 {
 	const int32 TotalSeconds = FMath::FloorToInt32(CurrentGameSeconds) % 86400;
 																		// 방어코드: 한번 더 % 86400 (하루)
 	int32 CurrentHour = (TotalSeconds / 3600) % 24;
-	return (SwanActiveStartHour <= CurrentHour) && (CurrentHour< SwanActiveEndHour);
+	return (ClockworkActiveStartHour <= CurrentHour) && (CurrentHour< ClockworkActiveEndHour);
 }
 
-void ACastle::UpdateSwansActiveState()
+void ACastle::RegisterClockworkActors()
 {
+	UWorld* World = GetWorld();											// 월드 내 액터 검색을 위해
+	if (!World) return;
 	
-	bool bShouldBeActive = IsSwanActiveTime();
+	ClockworkActors.Empty();
 	
-	if (bShouldBeActive != bWereSwansActive)							// 활성 상태 바뀜
+	TArray<AActor*> FoundActors;
+																		// 컴파일러는 TArray<TObjectPtr<AActor>> vs TArray<AActor*> 를 다른 타입으로 보기 때문에 
+																		// FoundActors로 받은 후, ClockworkActors에 추가해주는 방식
+	
+	UGameplayStatics::GetAllActorsWithInterface(						// 인터페이스 구현한 액터만 추가
+		World,
+		UClockworkControlled::StaticClass(),
+		FoundActors
+	);
+																		// UE 인터페이스는 클래스가 2개 생성됨
+																		// IClockworkControlled  ← 실제 인터페이스 (순수 가상 함수 선언)
+																		// UClockworkControlled  ← UObject 래퍼 (리플렉션/StaticClass() 담당)
+	
+	for (AActor* Actor : FoundActors)
 	{
-		for (TObjectPtr<ASwan> Swan : SpawnedSwans)
+		ClockworkActors.Add(Actor);
+	}
+}
+
+void ACastle::NotifyClockworkActors(bool bActive)
+{
+																		// for 루프 변수는 TObjectPtr<AActor>는 AActor*로의 암묵적 변환을 지원함
+																		// 루프 안에서는 AActor*로 쓰는 경우가 대부분
+																				// TObjectPtr의 이점(GC 추적 등)은 배열에 저장될 때 의미있고,
+																				// 루프 변수에서는 어차피 임시로 꺼내 쓰는 거라 의미가 없음
+	for (TObjectPtr<AActor> Actor : ClockworkActors)
+	{
+		if (Actor && Actor->Implements<UClockworkControlled>())			// null 체크 및 인터페이스가 실제 구현되어 있는지 확인
 		{
-			if (Swan)
-			{
-				Swan->SetMovementActive(IsSwanActiveTime());			// 백조 TArray 순회하며 동기화
-			}
-			bWereSwansActive = bShouldBeActive;							// 동기화 해주었으니, 멤버 변수 업데이트하기
+			Cast<IClockworkControlled>(Actor)->SetClockworkActive(bActive);
+																		// I 버전으로 캐스팅해서 인터페이스 함수 호출
 		}
-		bShouldBeActive = bWereSwansActive;
+	}
+}
+
+void ACastle::UpdateClockworkActorsActiveState()
+{
+	const bool bShouldBeActive = IsClockworkActiveTime();
+	
+	if (bShouldBeActive != bWereClockworkActorsActive)					// 활성 상태 바뀜
+	{
+		NotifyClockworkActors(bShouldBeActive);							// 인터페이스 기반 호출
+		bWereClockworkActorsActive = bShouldBeActive;
 	}
 }
 

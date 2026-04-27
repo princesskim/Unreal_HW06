@@ -112,25 +112,30 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Castle|Swan", meta = (ClampMin = "0.0"))
 	float SwanSpeed;							// 실제 시간 기반 백조 이동속도
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Castle|Swan", meta = (ClampMin = "0", ClampMax = "23"))
-	int32 SwanActiveStartHour;					// 백조가 움직이기 시작하는 시간 지정
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Castle|Swan", meta = (ClampMin = "0", ClampMax = "59"))
-	int32 SwanActiveEndHour;					// 백조가 멈추는 시간 지정
-	
 	UPROPERTY()
 	TArray<TObjectPtr<ASwan>> SpawnedSwans;		// 내부용 변수라서 따로 매크로 인자가 필요 없음
+	
+	// ===== 움직임 제어 설정 =====
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Castle|Clockwork", meta = (ClampMin = "0", ClampMax = "23"))
+	int32 ClockworkActiveStartHour;					// 백조, 발레리나 움직이기 시작하는 시간 지정
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Castle|Clockwork", meta = (ClampMin = "0", ClampMax = "59"))
+	int32 ClockworkActiveEndHour;					// 백조, 발레리나 멈추는 시간 지정
+	
 	
 private:
 	// ===== 내부 함수 =====
 	void SpawnSwans();
 	void UpdateClockHands();
 	void UpdateSunAndMoon();
-	bool IsSwanActiveTime() const;				// 시간 계산 캡슐화 - 이 함수의 결과, 백조가 움직일지 말지 알 수 있음
+	bool IsClockworkActiveTime() const;			// 시간 계산 캡슐화 - 이 함수의 결과, 백조가 움직일지 말지 알 수 있음
 												// 결과값을 백조에게 넘겨주기 위한 함수가 필요
-	void UpdateSwansActiveState();				// 활성 상태에 변동이 있을 때만 전체 백조에게 알림
+	void RegisterClockworkActors();				// 월드 내 시간 제어 대상 검색 및 등록
+	void NotifyClockworkActors(bool bActive);	// 모든 시간 제어 대상에게 활성/비활성 알림
+	
+	void UpdateClockworkActorsActiveState();				// 활성 상태에 변동이 있을 때만 전체 대상에게 알림
 	
 	// ===== 내부 변수 =====
-	bool bWereSwansActive;					// IsSwanActiveTime() 의 반환값과 비교하여 백조에게 알림
+	bool bWereClockworkActorsActive;					// IsSwanActiveTime() 의 반환값과 비교하여 백조에게 알림
 											// 관례적으로 생성자에서 초기화 할 때, Swan 클래스의 bIsMovementActive 초기값과 동일하게 할 것.
 											// Swan의 bIsMovementActive : 나 지금 움직이는 중?
 											// Castle의 bWereSwansActive : 백조들이 활성인가?		-> 두 값이 동일해야 올바르게 활성 상태를 감지함
@@ -139,4 +144,7 @@ private:
 													// bWereSwansActive를 현재 시간 기준의 반대값으로 강제 설정
 													// UpdateSwansActiveState 호출 시 무조건 변화 감지 됨
 													// 모든 Swan에게 정확한 상태 전파
+	UPROPERTY()
+	TArray<TObjectPtr<AActor>> ClockworkActors;
+											// 시간 제어 받는 모든 액터 수집 (인터페이스 기반)
 };

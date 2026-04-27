@@ -20,7 +20,7 @@ ASwan::ASwan()
 	// ===== 기본값 초기화 =====
 	CurrentDistanceAlongSpline = 0.f;
 	Speed = 150.f;										// 어차피 InitSwan에서 Castle의 SwanSpeed로 덮어씀
-	bIsMovementActive = true;
+	bIsClockworkActive = true;
 }
 
 void ASwan::BeginPlay()
@@ -56,9 +56,9 @@ void ASwan::InitSwan(TObjectPtr<ASwanPath> InPath, float InDistanceAlongSpline, 
 	}
 }
 
-void ASwan::SetMovementActive(bool bActive)
+void ASwan::SetClockworkActive(bool bActive)
 {
-	bIsMovementActive = bActive;
+	bIsClockworkActive = bActive;
 }
 
 
@@ -66,7 +66,7 @@ void ASwan::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
-	if (!bIsMovementActive) return;						// 안 움직이는 시간이기 때문에 위치 업데이트 생략
+	if (!bIsClockworkActive) return;						// 안 움직이는 시간이기 때문에 위치 업데이트 생략
 	if (!PathRef || !PathRef->Spline) return;
 	
 	// 실시간으로 백조 객체가 스플라인 위로 이동한 누적 거리를 측정하고,
